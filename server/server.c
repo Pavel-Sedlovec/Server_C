@@ -43,6 +43,7 @@ PGconn* connect_db(){
 */
 void* start_client(void* arg){
     pthread_detach(pthread_self());
+    PGconn *conn = connect_db();
     char buffer[256];
     int bytes_read;
     int client_sockfd = *((int*)arg);
