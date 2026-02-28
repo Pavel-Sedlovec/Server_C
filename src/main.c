@@ -26,6 +26,8 @@ int main(){
     struct sigaction sa;
     pthread_mutex_init(&mutex, NULL);
 
+    load_env();
+
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = server_stop;
     sigaction(SIGINT, &sa, NULL);

@@ -8,4 +8,7 @@
 
 PGconn* connect_db();
 void close_db(PGconn* conn);
+
+void load_env();
+
 #endif
