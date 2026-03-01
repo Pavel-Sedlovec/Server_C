@@ -1,5 +1,6 @@
 #include "server.h"
 #include "db.h"
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -44,4 +45,16 @@ void* start_client(void* arg){
     close(client_sockfd);
     close_db(conn);
     return NULL;
+}
+
+void creat_pthread(int client_sockfd){
+    int *new_client_sockfd = malloc(sizeof(int));
+    *new_client_sockfd = client_sockfd;
+    pthread_t thread;
+
+    if(pthread_create(&thread, NULL, start_client, (void*)new_client_sockfd) != 0){
+        perror("Error creat flow");
+        free(new_client_sockfd);
+    }
+
 }

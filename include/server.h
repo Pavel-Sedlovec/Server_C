@@ -7,4 +7,5 @@ extern int count_message;
 extern pthread_mutex_t mutex;
 
 void* start_client(void* arg);
+void creat_pthread(int client_sockfd);
 #endif

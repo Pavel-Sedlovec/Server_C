@@ -9,7 +9,7 @@ PGconn* connect_db(){
     const char *conninfo[1024];
     snprintf(conninfo, sizeof(conninfo), 
          "host=%s port=%s dbname=%s user=%s password=%s",
-         getnv("DB_HOST"), getnv("DB_PORT"), getnv("DB_NAME"), getnv("DB_USER"), getnv("DB_PASS"));         
+         getenv("DB_HOST"), getenv("DB_PORT"), getenv("DB_NAME"), getenv("DB_USER"), getenv("DB_PASS"));         
     PGconn *conn;
     conn = PQconnectdb(conninfo);
     if(PQstatus(conn) != CONNECTION_OK){
@@ -43,8 +43,8 @@ void load_env() {
 
     char line[128];
     while (fgets(line, sizeof(line), file)) {
-        char *key = strtok(line"=");
-        char *value = strtok(NULL"\n");
+        char *key = strtok(line, "=");
+        char *value = strtok(NULL, "\n");
         if (key && value) {
             setenv(key, value, 1);
         }
