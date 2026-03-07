@@ -19,12 +19,15 @@ void* start_client(void* arg){
     PGconn *conn = connect_db();
     // В дальнейшем проверка на NULL
 
+    Categories my_cats[50];
+    int x = get_all_courses(conn, my_cats, 50);
+    
     char buffer[256];
     int bytes_read;
     int client_sockfd = *((int*)arg);
     free(arg);
 
-    send(client_sockfd, HELLO, strlen(HELLO), 0); // Отправляем приветствие
+    send(client_sockfd, my_cats, strlen(my_cats), 0); // Отправляем приветствие
 
     while((bytes_read = recv(client_sockfd, buffer, sizeof(buffer), 0)) > 0){
         printf("Client cent: %.*s\n", bytes_read, buffer);

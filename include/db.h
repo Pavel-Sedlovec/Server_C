@@ -11,4 +11,11 @@ void close_db(PGconn* conn);
 
 void load_env();
 
+typedef struct
+{
+    int id;
+    char categories[64];
+}Categories;
+
+
 #endif
