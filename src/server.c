@@ -1,5 +1,7 @@
 #include "server.h"
 #include "db.h"
+#include "http.h"
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -8,6 +10,7 @@
 #include <libpq-fe.h>
 
 static char HELLO[] = "Super krutoi server";
+
 
 /*
 * Создание нового потока для пришедшего пользователя
@@ -27,17 +30,28 @@ void* start_client(void* arg){
     int client_sockfd = *((int*)arg);
     free(arg);
 
+    HTTPrequest req;  
+
     send(client_sockfd, my_cats, strlen(my_cats), 0); // Отправляем приветствие
 
     while((bytes_read = recv(client_sockfd, buffer, sizeof(buffer), 0)) > 0){
         printf("Client cent: %.*s\n", bytes_read, buffer);
 
-        if(strncmp(buffer, "/STAT", 5) == 0){
-            sprintf(buffer, "count message: %d", count_message);
-            send(client_sockfd, buffer, strlen(buffer), 0);            
+        parse_req_http(&req, &buffer);
+
+        if(strncmp(req.path, "/api/categories", 15) == 0){
+            send_response(client_sockfd, 200, "application/json", "[{\"id\":1, \"title\":\"C programming\"}]");
         }else{
-            send(client_sockfd, buffer, bytes_read, 0);
+            send_response(client_sockfd, 404, "text/plain", "Not Found");
         }
+
+        // if(strncmp(buffer, "/STAT", 5) == 0){
+        //     sprintf(buffer, "count message: %d", count_message);
+        //     send(client_sockfd, buffer, strlen(buffer), 0);            
+        // }else{
+        //     //send(client_sockfd, buffer, bytes_read, 0);
+        //     send(client_sockfd, response, sizeof(response), 0);
+        // }
 
         memset(buffer, 0, sizeof(buffer));
 
