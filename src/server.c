@@ -1,6 +1,7 @@
 #include "server.h"
 #include "db.h"
 #include "http.h"
+#include "cJSON.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -18,51 +19,109 @@ static char HELLO[] = "Super krutoi server";
 */
 void* start_client(void* arg){
     pthread_detach(pthread_self());
-    
-    PGconn *conn = connect_db();
-    // В дальнейшем проверка на NULL
-
-    Categories my_cats[50];
-    int x = get_all_courses(conn, my_cats, 50);
-    
-    char buffer[256];
-    int bytes_read;
     int client_sockfd = *((int*)arg);
     free(arg);
 
-    HTTPrequest req;  
+    PGconn *conn = connect_db();
+    if (!conn) {
+        close(client_sockfd);
+        return NULL;
+    }
 
-    send(client_sockfd, my_cats, strlen(my_cats), 0); // Отправляем приветствие
+    char buffer[2048];
+    int bytes_read;
+    HTTPrequest req;
 
-    while((bytes_read = recv(client_sockfd, buffer, sizeof(buffer), 0)) > 0){
-        printf("Client cent: %.*s\n", bytes_read, buffer);
+    while((bytes_read = recv(client_sockfd, buffer, sizeof(buffer) - 1, 0)) > 0){
+        buffer[bytes_read] = '\0';
+        printf("Client sent request\n");
+        parse_req_http(&req, buffer);
 
-        parse_req_http(&req, &buffer);
+        printf("Method: %s, Path: %s\n", req.method, req.path);   
 
-        if(strncmp(req.path, "/api/categories", 15) == 0){
-            send_response(client_sockfd, 200, "application/json", "[{\"id\":1, \"title\":\"C programming\"}]");
+        if(req.path && strncmp(req.path, "/api/", 5) == 0){
+            char *table_name = req.path + 5;
+            char *slash = strchr(table_name, '/');
+            int id_val;
+            int* id_ptr = NULL;
+
+            if(slash){
+                *slash = '\0';
+                id_val = atoi(slash + 1);
+                id_ptr = &id_val;
+            }
+
+            if(strcmp(req.method, "GET") == 0){
+                GET_request(conn, client_sockfd, table_name, id_ptr);
+            }
+            else if (strcmp(req.method, "DELETE") == 0){ 
+                DELETE_request(conn, client_sockfd, table_name, id_ptr);               
+            }
+            else if (strcmp(req.method, "POST") == 0){
+                POST_request(conn, client_sockfd, table_name, req);
+            }
+
         }else{
             send_response(client_sockfd, 404, "text/plain", "Not Found");
         }
 
-        // if(strncmp(buffer, "/STAT", 5) == 0){
-        //     sprintf(buffer, "count message: %d", count_message);
-        //     send(client_sockfd, buffer, strlen(buffer), 0);            
-        // }else{
-        //     //send(client_sockfd, buffer, bytes_read, 0);
-        //     send(client_sockfd, response, sizeof(response), 0);
-        // }
-
         memset(buffer, 0, sizeof(buffer));
-
+        
         pthread_mutex_lock(&mutex);
-        count_message = count_message + 1;
+        count_message++;
         pthread_mutex_unlock(&mutex);
     }
-    close(client_sockfd);
+
     close_db(conn);
+    close(client_sockfd);
     return NULL;
 }
+
+void GET_request(PGconn* conn, int client_sockfd, char* table_name, int* id){
+    char* json = NULL;
+
+    if(id == NULL){
+        json = get_all_json(conn, table_name);
+    }
+    else{
+        json = get_byId(conn, table_name, id); //Еще не реализовано
+    }
+
+    if(json != NULL){
+        send_response(client_sockfd, 200, "application/json", json);
+        free(json);
+    }
+    else {
+        send_response(client_sockfd, 404, "application/json", "{\"error\":\"Table not found or DB error\"}");
+    }
+}
+
+void DELETE_request(PGconn* conn, int client_sockfd, char* table_name, int* id){
+    if(id != NULL){
+        if (delete_record(conn, table_name, id)) {
+            send_response(client_sockfd, 200, "application/json", "{\"status\":\"ok\"}");
+        }
+    }
+}
+
+void POST_request(PGconn* conn, int client_sockfd, char* table_name, HTTPrequest* req){
+    cJSON *root = cJSON_Parse(req.body);
+
+    if(root != NULL){
+        if(post_record(conn, table_name, root)){
+            send_response(client_sockfd, 201, "application/json", "{\"status\":\"created\"}");
+        }
+        else{
+            send_response(client_sockfd, 500, "application/json", "{\"error\":\"db insert error\"}");
+        }
+    }
+    else{
+        send_response(client_sockfd, 400, "application/json", "{\"error\":\"invalide json\"}");
+    }
+
+    cJSON_Delete(root);
+}
+
 
 void creat_pthread(int client_sockfd){
     int *new_client_sockfd = malloc(sizeof(int));

@@ -1,13 +1,16 @@
 #include "db.h"
+#include "cJSON.h"
 #include <stdio.h>
 #include <string.h>
+
+
 
 /*
 * Функция для подключения к БД
 * @return Дескриптор подключения PGconn*. Если не смогли подключится - NULL
 */
 PGconn* connect_db(){
-    char conninfo[1024] = "///";
+    char conninfo[1024] = "string connect DB";
 
     // const char *host = getenv("DB_HOST");
     // const char *port = getenv("DB_PORT");
@@ -18,12 +21,12 @@ PGconn* connect_db(){
     //     fprintf(stderr, "Error: One or more DB environment variables are missing!\n");
     //     return NULL;
     // }
-    //int f = snprintf(conninfo, sizeof(conninfo), 
-         //"host=%s port=%s dbname=%s user=%s password=%s",
-         //getenv("DB_HOST"), getenv("DB_PORT"), getenv("DB_NAME"), getenv("DB_USER"), getenv("DB_PASS"));
+    // int f = snprintf(conninfo, sizeof(conninfo), 
+    //      "host=%s port=%s dbname=%s user=%s password=%s",
+    //      getenv("DB_HOST"), getenv("DB_PORT"), getenv("DB_NAME"), getenv("DB_USER"), getenv("DB_PASS"));
     
     // if(f < 0){
-    //     perror("PIZZZZZDA");
+    //     perror("error");
     //     exit(0);
     // }
     PGconn *conn;
@@ -38,28 +41,92 @@ PGconn* connect_db(){
     return conn;
 }
 
-int get_all_courses(PGconn *conn, Categories *dest, int size){
-    
-    PGresult *res = PQexec(conn, "SELECT id, title FROM categories");
+
+char* get_all_json(PGconn *conn, char *table_name){
+    char query[256];
+    snprintf(query, sizeof(query), "SELECT * FROM %s", table_name);
+
+    PGresult *res = PQexec(conn, query);
 
     if(PQresultStatus(res) != PGRES_TUPLES_OK){
         fprintf(stderr, "request failed: %s", PQerrorMessage(conn));
         PQclear(res);
-        return -1;
+        return NULL;
     }
+
     int rows = PQntuples(res);
+    int cols = PQnfields(res);
 
-    int count = size;
-    if(rows < size) count = rows;
+    cJSON *array = cJSON_CreateArray();
+ 
+    for (int i = 0; i < rows; i++) {
+        cJSON *item = cJSON_CreateObject();
+        for (int j = 0; j < cols; j++) {
+            cJSON_AddStringToObject(item, PQfname(res, j), PQgetvalue(res, i, j));
+        }
+        cJSON_AddItemToArray(array, item);
+    }
 
-    for(int i = 0; i < count; i++){
-        
-        dest[i].id = atoi(PQgetvalue(res, i, 0));
-        strncpy(dest[i].categories, PQgetvalue(res, i, 1), sizeof(dest[i].categories));
-        dest[i].categories[sizeof(dest[i].categories) - 1] = '\0';
+    char *result_str = cJSON_PrintUnformatted(array);
+    cJSON_Delete(array);
+    PQclear(res);
+    return result_str;
+
+}
+
+int delete_record(PGconn* conn, char *table_name, int id){
+    char query[256];
+    snprintf(query, sizeof(query), "DELETE FROM %s WHERE id = %d", table_name, id);
+
+    PGresult *res = PQexec(conn, query);
+
+    if(PQresultStatus(res) != PGRES_COMMAND_OK){
+        fprintf(stderr, "delete failed: %s", PQerrorMessage(conn));
+        PQclear(res);        
+        return 0;
     }
     PQclear(res);
-    return count;
+    return 1;
+}
+
+int post_record(PGconn* conn, const char *table_name, cJSON *json_obj) {
+    if (json_obj == NULL) return 0;
+
+    char columns[512] = "";
+    char values[512] = "";
+    cJSON *item = NULL;
+
+    cJSON_ArrayForEach(item, json_obj) {
+        strcat(columns, item->string);
+        strcat(columns, ", ");
+
+        strcat(values, "'");
+        if (cJSON_IsNumber(item)) {
+            char num_buf[32];
+            snprintf(num_buf, sizeof(num_buf), "%g", item->valuedouble);
+            strcat(values, num_buf);
+        } else {
+            strcat(values, item->valuestring);
+        }
+        strcat(values, "', ");
+    }
+
+    if (strlen(columns) > 2) columns[strlen(columns) - 2] = '\0';
+    if (strlen(values) > 2) values[strlen(values) - 2] = '\0';
+
+    char query[1024];
+    snprintf(query, sizeof(query), "INSERT INTO %s (%s) VALUES (%s)", table_name, columns, values);
+
+    PGresult *res = PQexec(conn, query);
+
+    if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+        fprintf(stderr, "INSERT failed: %s\n", PQerrorMessage(conn));
+        PQclear(res);
+        return 0;
+    }
+
+    PQclear(res);
+    return 1;
 }
 
 /*
