@@ -150,6 +150,41 @@ char* get_byId(PGconn *conn, char *table_name, int id) {
     return result_str;
 }
 
+char* get_courses_by_category(PGconn *conn, int category_id){
+    char query[256];
+    snprintf(query, sizeof(query), 
+        "SELECT c.id, c.title, c.description, u.name as author, cat.title as category "
+        "FROM courses c "
+        "JOIN users u ON c.author_id = u.id "
+        "JOIN categories cat ON c.category_id = cat.id "
+        "WHERE c.category_id = %d", category_id);
+
+    PGresult *res = PQexec(conn, query);
+    if(PQresultStatus(res) != PGRES_TUPLES_OK){
+        fprintf(stderr, "request failed: %s", PQerrorMessage(conn));
+        PQclear(res);
+        return NULL;
+    }
+
+    int rows = PQntuples(res);
+    int cols = PQnfields(res);
+    cJSON *array = cJSON_CreateArray();
+ 
+    for (int i = 0; i < rows; i++) {
+        cJSON *item = cJSON_CreateObject();
+        for (int j = 0; j < cols; j++) {
+            cJSON_AddStringToObject(item, PQfname(res, j), PQgetvalue(res, i, j));
+        }
+        cJSON_AddItemToArray(array, item);
+    }
+
+    char *result_str = cJSON_PrintUnformatted(array);
+    cJSON_Delete(array);
+    PQclear(res);
+    return result_str;
+}
+
+
 /*
 * Закрытие соединения с БД
 * @param conn дескриптор открытой БД
