@@ -184,6 +184,22 @@ char* get_courses_by_category(PGconn *conn, int category_id){
     return result_str;
 }
 
+int enroll_student(PGconn* conn, int student_id, int course_id){
+    char query[256];
+    snprintf(query, sizeof(query), 
+        "INSERT INTO enrollments (student_id, course_id) VALUES (%d, %d)", 
+        student_id, course_id);
+
+    PGresult *res = PQexec(conn, query);
+    if(PQresultStatus(res) != PGRES_COMMAND_OK){
+        fprintf(stderr, "enroll failed: %s", PQerrorMessage(conn));
+        PQclear(res);        
+        return 0;
+    }
+    PQclear(res);
+    return 1;
+}
+
 
 /*
 * Закрытие соединения с БД
