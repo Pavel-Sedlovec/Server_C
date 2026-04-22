@@ -129,6 +129,27 @@ int post_record(PGconn* conn, const char *table_name, cJSON *json_obj) {
     return 1;
 }
 
+char* get_byId(PGconn *conn, char *table_name, int id) {
+    char query[256];
+    snprintf(query, sizeof(query), "SELECT * FROM %s WHERE id = %d", table_name, id);
+
+    PGresult *res = PQexec(conn, query);
+    if (PQresultStatus(res) != PGRES_TUPLES_OK || PQntuples(res) == 0) {
+        PQclear(res);
+        return NULL;
+    }
+
+    cJSON *item = cJSON_CreateObject();
+    for (int j = 0; j < PQnfields(res); j++) {
+        cJSON_AddStringToObject(item, PQfname(res, j), PQgetvalue(res, 0, j));
+    }
+
+    char *result_str = cJSON_PrintUnformatted(item);
+    cJSON_Delete(item);
+    PQclear(res);
+    return result_str;
+}
+
 /*
 * Закрытие соединения с БД
 * @param conn дескриптор открытой БД
