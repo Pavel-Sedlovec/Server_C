@@ -260,6 +260,39 @@ char* get_module_lessons(PGconn *conn, int module_id){
     return result_str;
 }
 
+char* get_student_courses(PGconn *conn, int student_id){
+    char query[512];
+    snprintf(query, sizeof(query), 
+        "SELECT c.id, c.title, c.description, u.name as author "
+        "FROM enrollments e "
+        "JOIN courses c ON e.course_id = c.id "
+        "JOIN users u ON c.author_id = u.id "
+        "WHERE e.student_id = %d", student_id);
+
+    PGresult *res = PQexec(conn, query);
+    if(PQresultStatus(res) != PGRES_TUPLES_OK){
+        PQclear(res);
+        return NULL;
+    }
+
+    int rows = PQntuples(res);
+    int cols = PQnfields(res);
+    cJSON *array = cJSON_CreateArray();
+ 
+    for (int i = 0; i < rows; i++) {
+        cJSON *item = cJSON_CreateObject();
+        for (int j = 0; j < cols; j++) {
+            cJSON_AddStringToObject(item, PQfname(res, j), PQgetvalue(res, i, j));
+        }
+        cJSON_AddItemToArray(array, item);
+    }
+
+    char *result_str = cJSON_PrintUnformatted(array);
+    cJSON_Delete(array);
+    PQclear(res);
+    return result_str;
+}
+
 
 /*
 * Закрытие соединения с БД
