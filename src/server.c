@@ -40,27 +40,9 @@ void* start_client(void* arg){
         printf("Method: %s, Path: %s\n", req.method, req.path);   
 
         if(req.path && strncmp(req.path, "/api/", 5) == 0){
-            char *table_name = req.path + 5;
-            char *slash = strchr(table_name, '/');
-            int id_val;
-            int* id_ptr = NULL;
-
-            if(slash){
-                *slash = '\0';
-                id_val = atoi(slash + 1);
-                id_ptr = &id_val;
-            }
-
-            if(strcmp(req.method, "GET") == 0){
-                GET_request(conn, client_sockfd, table_name, id_ptr);
-            }
-            else if (strcmp(req.method, "DELETE") == 0){ 
-                DELETE_request(conn, client_sockfd, table_name, id_ptr);               
-            }
-            else if (strcmp(req.method, "POST") == 0){
-                POST_request(conn, client_sockfd, table_name, req);
-            }
-
+            if(!specific_route(&req, conn, client_sockfd)){
+                universal_route(&req, conn, client_sockfd);
+            }            
         }else{
             send_response(client_sockfd, 404, "text/plain", "Not Found");
         }
@@ -75,6 +57,94 @@ void* start_client(void* arg){
     close_db(conn);
     close(client_sockfd);
     return NULL;
+}
+
+int specific_route(HTTPrequest* req, PGconn* conn, int client_sockfd){
+    if(strncmp(req->path, "/api/courses/category/", 22) == 0){
+        int cat_id = atoi(req->path + 22);
+        char* json = get_courses_by_category(conn, cat_id);
+        if(json){
+            send_response(client_sockfd, 200, "application/json", json);
+            free(json);
+            return 1;
+        } else {
+            send_response(client_sockfd, 404, "application/json", "{\"error\":\"not found\"}");
+        }
+    }
+    else if(strncmp(req->path, "/api/modules/course/", 20) == 0){
+        int course_id = atoi(req->path + 20);
+        char* json = get_course_modules(conn, course_id);
+        if(json){
+            send_response(client_sockfd, 200, "application/json", json);
+            free(json);
+            return 1;
+        } else {
+            send_response(client_sockfd, 404, "application/json", "{\"error\":\"not found\"}");
+        }
+    }
+    else if(strncmp(req->path, "/api/lessons/module/", 20) == 0){
+        int module_id = atoi(req->path + 20);
+        char* json = get_module_lessons(conn, module_id);
+        if(json){
+            send_response(client_sockfd, 200, "application/json", json);
+            free(json);
+            return 1;
+        } else {
+            send_response(client_sockfd, 404, "application/json", "{\"error\":\"not found\"}");
+        }
+    }
+    else if(strncmp(req->path, "/api/enrollments/student/", 25) == 0){
+        int student_id = atoi(req->path + 25);
+        char* json = get_student_courses(conn, student_id);
+        if(json){
+            send_response(client_sockfd, 200, "application/json", json);
+            free(json);
+            return 1;
+        } else {
+            send_response(client_sockfd, 404, "application/json", "{\"error\":\"not found\"}");
+        }
+    }
+    else if(strcmp(req->path, "POST") == 0 && strncmp(req->path, "/api/enroll", 11) == 0){
+        cJSON *root = cJSON_Parse(req->body);
+        if(root){
+            cJSON *student = cJSON_GetObjectItem(root, "student_id");
+            cJSON *course = cJSON_GetObjectItem(root, "course_id");
+            
+            if(student && course){
+                if(enroll_student(conn, student->valueint, course->valueint)){
+                    send_response(client_sockfd, 201, "application/json", "{\"status\":\"enrolled\"}");
+                    return 1;
+                } else {
+                    send_response(client_sockfd, 500, "application/json", "{\"error\":\"db error\"}");
+                }
+            }
+            cJSON_Delete(root);
+        }
+    }
+    return 0;    
+}
+
+void universal_route(HTTPrequest* req, PGconn* conn, int client_sockfd){
+    char *table_name = req->path + 5;
+    char *slash = strchr(table_name, '/');
+    int id_val;
+    int* id_ptr = NULL;
+
+    if(slash){
+        *slash = '\0';
+        id_val = atoi(slash + 1);
+        id_ptr = &id_val;
+    }
+
+    if(strcmp(req->method, "GET") == 0){
+        GET_request(conn, client_sockfd, table_name, id_ptr);
+    }
+    else if (strcmp(req->method, "DELETE") == 0){ 
+        DELETE_request(conn, client_sockfd, table_name, id_ptr);               
+    }
+    else if (strcmp(req->method, "POST") == 0){
+        POST_request(conn, client_sockfd, table_name, req);
+    }
 }
 
 void GET_request(PGconn* conn, int client_sockfd, char* table_name, int* id){
@@ -105,7 +175,7 @@ void DELETE_request(PGconn* conn, int client_sockfd, char* table_name, int* id){
 }
 
 void POST_request(PGconn* conn, int client_sockfd, char* table_name, HTTPrequest* req){
-    cJSON *root = cJSON_Parse(req.body);
+    cJSON *root = cJSON_Parse(req->body);
 
     if(root != NULL){
         if(post_record(conn, table_name, root)){
