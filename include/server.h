@@ -13,7 +13,9 @@ void creat_pthread(int client_sockfd);
 
 int specific_route(HTTPrequest* req, PGconn* conn, int client_sockfd);
 void universal_route(HTTPrequest* req, PGconn* conn, int client_sockfd);
+
 void GET_request(PGconn* conn, int client_sockfd, char* table_name, int* id);
 void DELETE_request(PGconn* conn, int client_sockfd, char* table_name, int* id);
 void POST_request(PGconn* conn, int client_sockfd, char* table_name, HTTPrequest* req);
+
 #endif

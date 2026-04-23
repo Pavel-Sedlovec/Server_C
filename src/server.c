@@ -66,10 +66,10 @@ int specific_route(HTTPrequest* req, PGconn* conn, int client_sockfd){
         if(json){
             send_response(client_sockfd, 200, "application/json", json);
             free(json);
-            return 1;
         } else {
             send_response(client_sockfd, 404, "application/json", "{\"error\":\"not found\"}");
         }
+        return 1;
     }
     else if(strncmp(req->path, "/api/modules/course/", 20) == 0){
         int course_id = atoi(req->path + 20);
@@ -77,10 +77,10 @@ int specific_route(HTTPrequest* req, PGconn* conn, int client_sockfd){
         if(json){
             send_response(client_sockfd, 200, "application/json", json);
             free(json);
-            return 1;
         } else {
-            send_response(client_sockfd, 404, "application/json", "{\"error\":\"not found\"}");
+            send_response(client_sockfd, 200, "application/json", "[]");
         }
+        return 1;
     }
     else if(strncmp(req->path, "/api/lessons/module/", 20) == 0){
         int module_id = atoi(req->path + 20);
@@ -88,10 +88,10 @@ int specific_route(HTTPrequest* req, PGconn* conn, int client_sockfd){
         if(json){
             send_response(client_sockfd, 200, "application/json", json);
             free(json);
-            return 1;
         } else {
-            send_response(client_sockfd, 404, "application/json", "{\"error\":\"not found\"}");
+            send_response(client_sockfd, 200, "application/json", "[]");
         }
+        return 1;
     }
     else if(strncmp(req->path, "/api/enrollments/student/", 25) == 0){
         int student_id = atoi(req->path + 25);
@@ -99,12 +99,12 @@ int specific_route(HTTPrequest* req, PGconn* conn, int client_sockfd){
         if(json){
             send_response(client_sockfd, 200, "application/json", json);
             free(json);
-            return 1;
         } else {
-            send_response(client_sockfd, 404, "application/json", "{\"error\":\"not found\"}");
+            send_response(client_sockfd, 200, "application/json", "[]");
         }
+        return 1;
     }
-    else if(strcmp(req->path, "POST") == 0 && strncmp(req->path, "/api/enroll", 11) == 0){
+    else if(strcmp(req->method, "POST") == 0 && strncmp(req->path, "/api/enroll", 11) == 0){
         cJSON *root = cJSON_Parse(req->body);
         if(root){
             cJSON *student = cJSON_GetObjectItem(root, "student_id");
@@ -113,13 +113,18 @@ int specific_route(HTTPrequest* req, PGconn* conn, int client_sockfd){
             if(student && course){
                 if(enroll_student(conn, student->valueint, course->valueint)){
                     send_response(client_sockfd, 201, "application/json", "{\"status\":\"enrolled\"}");
+                    cJSON_Delete(root);
                     return 1;
                 } else {
                     send_response(client_sockfd, 500, "application/json", "{\"error\":\"db error\"}");
+                    cJSON_Delete(root);
+                    return 1;
                 }
             }
             cJSON_Delete(root);
         }
+        send_response(client_sockfd, 400, "application/json", "{\"error\":\"invalid json\"}");
+        return 1;
     }
     return 0;    
 }
@@ -154,7 +159,8 @@ void GET_request(PGconn* conn, int client_sockfd, char* table_name, int* id){
         json = get_all_json(conn, table_name);
     }
     else{
-        json = get_byId(conn, table_name, id); //Еще не реализовано
+        int id_val = *id;
+        json = get_byId(conn, table_name, id_val);
     }
 
     if(json != NULL){
@@ -168,9 +174,14 @@ void GET_request(PGconn* conn, int client_sockfd, char* table_name, int* id){
 
 void DELETE_request(PGconn* conn, int client_sockfd, char* table_name, int* id){
     if(id != NULL){
-        if (delete_record(conn, table_name, id)) {
+        int id_val = *id;
+        if (delete_record(conn, table_name, id_val)) {
             send_response(client_sockfd, 200, "application/json", "{\"status\":\"ok\"}");
+        } else {
+            send_response(client_sockfd, 500, "application/json", "{\"error\":\"delete failed\"}");
         }
+    } else {
+        send_response(client_sockfd, 400, "application/json", "{\"error\":\"id required\"}");
     }
 }
 
@@ -186,7 +197,7 @@ void POST_request(PGconn* conn, int client_sockfd, char* table_name, HTTPrequest
         }
     }
     else{
-        send_response(client_sockfd, 400, "application/json", "{\"error\":\"invalide json\"}");
+        send_response(client_sockfd, 400, "application/json", "{\"error\":\"invalid json\"}");
     }
 
     cJSON_Delete(root);

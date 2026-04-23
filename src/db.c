@@ -208,6 +208,7 @@ char* get_course_modules(PGconn *conn, int course_id){
 
     PGresult *res = PQexec(conn, query);
     if(PQresultStatus(res) != PGRES_TUPLES_OK){
+        fprintf(stderr, "request failed: %s", PQerrorMessage(conn));
         PQclear(res);
         return NULL;
     }
@@ -227,6 +228,7 @@ char* get_course_modules(PGconn *conn, int course_id){
     char *result_str = cJSON_PrintUnformatted(array);
     cJSON_Delete(array);
     PQclear(res);
+
     return result_str;
 }
 
@@ -238,6 +240,7 @@ char* get_module_lessons(PGconn *conn, int module_id){
 
     PGresult *res = PQexec(conn, query);
     if(PQresultStatus(res) != PGRES_TUPLES_OK){
+        fprintf(stderr, "request failed: %s", PQerrorMessage(conn));
         PQclear(res);
         return NULL;
     }
@@ -257,6 +260,7 @@ char* get_module_lessons(PGconn *conn, int module_id){
     char *result_str = cJSON_PrintUnformatted(array);
     cJSON_Delete(array);
     PQclear(res);
+    
     return result_str;
 }
 
@@ -271,6 +275,7 @@ char* get_student_courses(PGconn *conn, int student_id){
 
     PGresult *res = PQexec(conn, query);
     if(PQresultStatus(res) != PGRES_TUPLES_OK){
+        fprintf(stderr, "request failed: %s", PQerrorMessage(conn));
         PQclear(res);
         return NULL;
     }
@@ -290,6 +295,7 @@ char* get_student_courses(PGconn *conn, int student_id){
     char *result_str = cJSON_PrintUnformatted(array);
     cJSON_Delete(array);
     PQclear(res);
+    
     return result_str;
 }
 
